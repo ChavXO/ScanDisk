@@ -20,7 +20,10 @@
 enum node_type { EMPTY, NORMAL, EOF, BAD, RESERVED, NOT_SET };
 
 typedef struct _ref_node {
+    char name [9];
+    char ext [4];
     node_type type;
+    int size;
     int reference_count;
 } ref_node;
 
