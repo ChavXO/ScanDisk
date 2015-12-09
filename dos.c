@@ -284,4 +284,3 @@ uint8_t *cluster_to_addr(uint16_t cluster, uint8_t *image_buf,
     }
     return p;
 }
-

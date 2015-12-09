@@ -7,6 +7,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <string.h>
+#include <stdbool.h>
 
 #include "bootsect.h"
 #include "bpb.h"
@@ -14,50 +15,21 @@
 #include "fat.h"
 #include "dos.h"
 
+//static int culster_refs = 0;
+
+enum node_type { EMPTY, NORMAL, EOF, BAD, RESERVED, NOT_SET };
+
+typedef struct _ref_node {
+    node_type type;
+    int reference_count;
+} ref_node;
+
+
+void node_init(struct node *n);
 
 void usage(char *progname) {
     fprintf(stderr, "usage: %s <imagename>\n", progname);
     exit(1);
-}
-
-struct direntry *traverse_root(char *searchpath, uint8_t *image_buf, struct bpb33* bpb)
-{
-    uint16_t cluster = 0;
-    struct direntry *rv = NULL;
-
-    struct direntry *dirent = (struct direntry*)cluster_to_addr(cluster, image_buf, bpb);
-
-    char *next_path_component = index(searchpath, '/');
-    int root_entry_len = strlen(searchpath);
-    if (next_path_component != NULL)
-    {
-        root_entry_len = next_path_component - searchpath;
-        *next_path_component = '\0';
-        next_path_component++;
-    }
-
-    char buffer[MAXFILENAME];
-
-    int i = 0;
-    for ( ; i < bpb->bpbRootDirEnts; i++)
-    {
-        uint16_t followclust = get_dirent(dirent, buffer);
-
-        if (strncasecmp(searchpath, buffer, strlen(searchpath)) == 0)
-        {
-            if (!next_path_component)
-                rv = dirent;
-            else if (is_valid_cluster(followclust, bpb))
-                rv = follow_dir(next_path_component, followclust, image_buf, bpb);
-        }
-
-        if (rv)
-            break;
-
-        dirent++;
-    }
-
-    return rv;
 }
 
 //TO BE MODIFIED - taken from dos.c
@@ -290,8 +262,7 @@ void follow_dir(uint16_t cluster, int indent,
 }
 
 //taken from dos_ls
-void traverse_root(uint8_t *image_buf, struct bpb33* bpb)
-{
+void traverse_root(int num_clusters, struct node* refs[], int8_t *image_buf, struct bpb33* bpb) {
     uint16_t cluster = 0;
 
     struct direntry *dirent = (struct direntry*)cluster_to_addr(cluster, image_buf, bpb);
@@ -303,6 +274,7 @@ void traverse_root(uint8_t *image_buf, struct bpb33* bpb)
         if (is_valid_cluster(followclust, bpb))
             follow_dir(followclust, 1, image_buf, bpb);
 
+        // check the size of the file
         dirent++;
     }
 }
@@ -322,15 +294,16 @@ int main(int argc, char** argv) {
 
     image_buf = mmap_file(argv[1], &fd);
     bpb = check_bootsector(image_buf);
+    u_int16_t num_sectors = bpb->bpbSectors;
+    
+    struct ref_node* refs[num_sectors];
 
-    // your code should start here...
-    int i;
-    while (
+    // for reasons known to only to Bill gates this for loops starts at 2
+    for (i = 2; i <  num_sectors; i += ++) {
+        refs[i] = calloc(1, sizeof(struct ref_node));        
+    }
 
-
-
-
-
+    traverse_root(num_clusters, refs, image_buf, bpb);
     unmmap_file(image_buf, &fd);
     return 0;
 }
