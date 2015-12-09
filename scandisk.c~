@@ -17,12 +17,10 @@
 
 //array global variable
 
-int refs[bpb->bpbSectors];
+int* refs;
 
 
 //check size first, if chain is 2 blocks long check size variable then size of dir entry should be between 513 - 1024, look at print dirent to extract size, if wrong -> make size max size, add ability to follow cluster chain
-
-
 
 
 void usage(char *progname) {
@@ -30,10 +28,58 @@ void usage(char *progname) {
     exit(1);
 }
 
+/* get_name retrieves the filename from a directory entry */
+/* taken from dos_cp - modified for validity checking */
+int get_name(char *fullname, struct direntry *dirent) {
+    if ((dirent->deAttributes & ATTR_WIN95LFN) == ATTR_WIN95LFN) return -1;
+    char name[9];
+    char extension[4];
+    int i;
+
+    name[8] = ' ';
+    extension[3] = ' ';
+    memcpy(name, &(dirent->deName[0]), 8);
+    if (((u_int8_t) name[0]) == SLOT_DELETED)) return -1;
+    
+    
+    memcpy(extension, dirent->deExtension, 3);
+    
+    /* names are space padded - remove the padding */
+    for (i = 8; i > 0; i--) {
+        if (name[i] == ' ') 
+            name[i] = '\0';
+        else 
+            break;
+    }
+
+    /* extensions aren't normally space padded - but remove the
+       padding anyway if it's there */
+    for (i = 3; i > 0; i--) {
+        if (extension[i] == ' ') 
+            extension[i] = '\0';
+        else 
+            break;
+    }
+    
+    fullname[0]='\0';
+    strcat(fullname, name);
+
+    /* append the extension if it's not a directory */
+    if ((dirent->deAttributes & ATTR_DIRECTORY) == 0) {
+        if ((dirent->deAttributes & ATTR_HIDDEN) == ATTR_HIDDEN) {
+            return -1;
+        }
+        strcat(fullname, ".");
+        strcat(fullname, extension);
+    }
+    
+    return 0;
+}
+
 //TO BE MODIFIED - taken from dos.c
 int is_valid_cluster(uint16_t cluster, struct bpb33 *bpb)
 {
-    uint16_t max_cluster = (bpb->bpbSectors / bpb->bpbSecPerClust) & FAT12_MASK;
+    uint16_t max_cluster = (bpb->bpbSectors / bpb->bpbSecPerClust) & FAT12_MASK; // edit max xluster?
 
     if (cluster >= (FAT12_MASK & CLUST_FIRST) && 
         cluster <= (FAT12_MASK & CLUST_LAST) &&
@@ -66,26 +112,23 @@ void write_dirent(struct direntry *dirent, char *filename,
     }
 
     /* convert filename to upper case */
-    for (i = 0; i < strlen(uppername); i++) 
-    {
-	uppername[i] = toupper(uppername[i]);
+    for (i = 0; i < strlen(uppername); i++) {
+        uppername[i] = toupper(uppername[i]);
     }
 
     /* set the file name and extension */
     memset(dirent->deName, ' ', 8);
     p = strchr(uppername, '.');
     memcpy(dirent->deExtension, "___", 3);
-    if (p == NULL) 
-    {
-	fprintf(stderr, "No filename extension given - defaulting to .___\n");
+    if (p == NULL) {
+        fprintf(stderr, "No filename extension given - defaulting to .___\n");
     }
-    else 
-    {
-	*p = '\0';
-	p++;
-	len = strlen(p);
-	if (len > 3) len = 3;
-	memcpy(dirent->deExtension, p, len);
+    else {
+        *p = '\0';
+        p++;
+        len = strlen(p);
+        if (len > 3) len = 3;
+            memcpy(dirent->deExtension, p, len);
     }
 
     if (strlen(uppername)>8) 
@@ -108,10 +151,8 @@ void create_dirent(struct direntry *dirent, char *filename,
 		   uint16_t start_cluster, uint32_t size,
 		   uint8_t *image_buf, struct bpb33* bpb)
 {
-    while (1) 
-    {
-	if (dirent->deName[0] == SLOT_EMPTY) 
-	{
+    while (1) {
+	if (dirent->deName[0] == SLOT_EMPTY) {
 	    /* we found an empty slot at the end of the directory */
 	    write_dirent(dirent, filename, start_cluster, size);
 	    dirent++;
@@ -240,8 +281,7 @@ uint16_t print_dirent(struct direntry *dirent, int indent)
 void follow_dir(uint16_t cluster, int indent,
 		uint8_t *image_buf, struct bpb33* bpb)
 {
-    while (is_valid_cluster(cluster, bpb))
-    {
+    while (is_valid_cluster(cluster, bpb)) {
         struct direntry *dirent = (struct direntry*)cluster_to_addr(cluster, image_buf, bpb);
 
         int numDirEntries = (bpb->bpbBytesPerSec * bpb->bpbSecPerClust) / sizeof(struct direntry);
@@ -259,6 +299,37 @@ void follow_dir(uint16_t cluster, int indent,
     }
 }
 
+bool is_valid_size(struct direntry* dirent, uint8_t image_buf, 
+                   struct bpb33* bpb, int cluster) {
+    int start = getulong(dirent->deStartCluster);
+    int size = getulong(dirent->deFileSize);;
+    int end = 0;
+    int chain_length = 0;
+    end = start + size / 512;
+    
+    char name[15]; //realistic upper bound is 13 though
+    
+    // use name to see if has been deleted
+    if(get_name(name, dirent) == -1) {
+        // error message
+    	return false;
+    }
+    
+    // pass in cluster
+    // int cluster = 0; // is this necessary or correct?
+    
+    // check if start cluster is valid
+    if (!is_valid_cluster(cluster, bpb)) {
+        // mark as deleted
+        // error message
+        dirent->deName[0] = SLOT_DELETED;
+        return false;
+    }
+    
+    // check other instances of cluster
+    return true;
+}
+
 //taken from dos_ls
 void traverse_root(uint8_t *image_buf, struct bpb33* bpb) {
     uint16_t cluster = 0;
@@ -268,9 +339,16 @@ void traverse_root(uint8_t *image_buf, struct bpb33* bpb) {
     int i = 0;
     for ( ; i < bpb->bpbRootDirEnts; i++) {
         uint16_t followclust = print_dirent(dirent, 0);
-        if (is_valid_cluster(followclust, bpb))
-        {   //update reference count
+        
+        // check size
+        if (is_valid_cluster(followclust, bpb)) {   //update reference count
             refs[followclust]++;
+            //no index of refs can contain a number greater than 1
+            if(refs[followclust] > 1) {
+               dirent->deName[0] = SLOT_DELETED;
+               refs[followclust]--;
+               printf("scan error: multiple references.");
+            }
             follow_dir(followclust, 1, image_buf, bpb);
         }
 
@@ -293,21 +371,7 @@ int main(int argc, char** argv) {
     image_buf = mmap_file(argv[1], &fd);
     bpb = check_bootsector(image_buf);
     
-    
-    //u_int16_t num_sectors = bpb->bpbSectors;
-    
-    //struct ref_node* refs[num_sectors];
-
-    /* for reasons known to only to Bill gates this for loops starts at 2
-    for (i = 2; i <  num_sectors; i += ++) { //2880 - bios parameter block
-        refs[i] = calloc(1, sizeof(struct ref_node));        
-    }*/
-    
-    //initialize array to 0 for each reference
-    for(int i = 0; i < bpb->bpbSectors; i++)
-    {
-       refs[i] = 0;
-    }
+    refs = calloc(bpb->bpbSectors, sizeof(int));
 
     traverse_root(image_buf, bpb);
     unmmap_file(image_buf, &fd);

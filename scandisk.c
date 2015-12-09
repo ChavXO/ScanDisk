@@ -345,6 +345,9 @@ void traverse_root(uint8_t *image_buf, struct bpb33* bpb) {
             refs[followclust]++;
             //no index of refs can contain a number greater than 1
             if(refs[followclust] > 1) {
+            //deleting duplicate entry in directoty
+               dirent->deName[0] = SLOT_DELETED;
+               refs[followclust]--;
                printf("scan error: multiple references.");
             }
             follow_dir(followclust, 1, image_buf, bpb);
