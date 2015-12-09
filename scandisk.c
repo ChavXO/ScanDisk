@@ -79,7 +79,7 @@ int get_name(char *fullname, struct direntry *dirent) {
 //TO BE MODIFIED - taken from dos.c
 int is_valid_cluster(uint16_t cluster, struct bpb33 *bpb)
 {
-    uint16_t max_cluster = (bpb->bpbSectors / bpb->bpbSecPerClust) & FAT12_MASK;
+    uint16_t max_cluster = (bpb->bpbSectors / bpb->bpbSecPerClust) & FAT12_MASK; // edit max xluster?
 
     if (cluster >= (FAT12_MASK & CLUST_FIRST) && 
         cluster <= (FAT12_MASK & CLUST_LAST) &&
@@ -300,7 +300,7 @@ void follow_dir(uint16_t cluster, int indent,
 }
 
 bool is_valid_size(struct direntry* dirent, uint8_t image_buf, 
-                   struct bpb33* bpb) {
+                   struct bpb33* bpb, int cluster) {
     int start = getulong(dirent->deStartCluster);
     int size = getulong(dirent->deFileSize);;
     int end = 0;
@@ -316,12 +316,18 @@ bool is_valid_size(struct direntry* dirent, uint8_t image_buf,
     }
     
     // pass in cluster
-    int cluster = 0; // is this necessary or correct?
-    // check if it is a valid cluster
+    // int cluster = 0; // is this necessary or correct?
+    
+    // check if start cluster is valid
     if (!is_valid_cluster(cluster, bpb)) {
-        delete
+        // mark as deleted
+        // error message
+        dirent->deName[0] = SLOT_DELETED;
+        return false;
     }
-    return false;
+    
+    // check other instances of cluster
+    return true;
 }
 
 //taken from dos_ls
