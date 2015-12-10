@@ -7,8 +7,9 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <string.h>
+#include <ctype.h>
 #include <stdbool.h>
-
+#include <string.h>
 #include "bootsect.h"
 #include "bpb.h"
 #include "direntry.h"
@@ -39,7 +40,7 @@ int get_name(char *fullname, struct direntry *dirent) {
     name[8] = ' ';
     extension[3] = ' ';
     memcpy(name, &(dirent->deName[0]), 8);
-    if (((u_int8_t) name[0]) == SLOT_DELETED)) return -1;
+    if (((u_int8_t) name[0]) == SLOT_DELETED) return -1;
     
     
     memcpy(extension, dirent->deExtension, 3);
@@ -182,7 +183,7 @@ void print_indent(int indent)
 	printf(" ");
 }
 
-uint16_t print_dirent(struct direntry *dirent, int indent)
+uint16_t print_dirent(struct direntry *dirent, int indent, struct bpb33* bpb, uint8_t * image_buf)
 {
     uint16_t followclust = 0;
 
@@ -292,10 +293,21 @@ uint16_t print_dirent(struct direntry *dirent, int indent)
                   chain++;
                   break;
               }
-              //check size for consistency  
+            chain++;
         
     }
-
+    
+          //check size for consistency  
+              
+              int max = chain * 512;
+              int min = max - 512;
+              
+              if(size > max || size <= min)
+              {
+                printf("OUT OF BOUNDS: Size in directory entry is inconsistent");
+                putulong(dirent->deFileSize,max);
+              }
+   }
     return followclust;
 }
 
@@ -311,7 +323,7 @@ void follow_dir(uint16_t cluster, int indent,
 	for ( ; i < numDirEntries; i++)
 	{
             
-            uint16_t followclust = print_dirent(dirent, indent);
+            uint16_t followclust = print_dirent(dirent, indent,bpb,image_buf);
             if (followclust)
                 follow_dir(followclust, indent+1, image_buf, bpb);
             dirent++;
@@ -360,7 +372,7 @@ void traverse_root(uint8_t *image_buf, struct bpb33* bpb) {
 
     int i = 0;
     for ( ; i < bpb->bpbRootDirEnts; i++) {
-        uint16_t followclust = print_dirent(dirent, 0);
+        uint16_t followclust = print_dirent(dirent, 0,bpb,image_buf);
         
         // check size
         if (is_valid_cluster(followclust, bpb)) {   //update reference count
