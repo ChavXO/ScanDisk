@@ -16,6 +16,8 @@
 #include "fat.h"
 #include "dos.h"
 
+
+//note: look at badimage5 b/c i don't think our code is fixing the size issue there or not, also for detecting multiple references
 //array global variable
 
 int* refs;
@@ -29,6 +31,7 @@ void usage(char *progname) {
     exit(1);
 }
 
+ 
 /* get_name retrieves the filename from a directory entry */
 /* taken from dos_cp - modified for validity checking */
 int get_name(char *fullname, struct direntry *dirent) {
@@ -389,13 +392,6 @@ void traverse_root(uint8_t *image_buf, struct bpb33* bpb) {
         // check size
         if (is_valid_cluster_scan(followclust, bpb)) {   //update reference count
             refs[followclust]++;
-            //no index of refs can contain a number greater than 1
-            if(refs[followclust] > 1) {
-            //deleting duplicate entry in directoty
-               dirent->deName[0] = SLOT_DELETED;
-               refs[followclust]--;
-               printf("scan error: multiple references.");
-            }
             follow_dir(followclust, 1, image_buf, bpb);
         }
 
@@ -413,7 +409,7 @@ void fix_orphans(uint8_t *image_buf, struct bpb33* bpb) {
     struct direntry *dirent = (struct direntry*)cluster_to_addr(0, image_buf, bpb);
     
     int orphan_count = 0;
-    int clusters = 0;
+    int clusters = 1;
     
     for (int i = 2; i < bpb->bpbSectors; i++) {
         next_cluster = get_fat_entry(i, image_buf, bpb);        
@@ -435,11 +431,25 @@ void fix_orphans(uint8_t *image_buf, struct bpb33* bpb) {
             strcat(name, ".dat");
             
             create_dirent(dirent, name, i, clusters * 512, image_buf, bpb);
+            uint16_t cluster = next_cluster;
+            if (is_valid_cluster_scan(cluster, bpb)){
+                refs[cluster]++;
+                //i believe this check should go here, previously not finding any issues in image 5 when there are images there
+                if(refs[cluster] > 1) {
+                    //deleting duplicate entry in directoty
+                    dirent->deName[0] = SLOT_DELETED;
+                    refs[cluster]--;
+                    printf("scan error: multiple references.");
+                }
+             }
             set_fat_entry(i, (FAT12_MASK & CLUST_EOFS), image_buf, bpb);
             printf("Orphan fostered!\n");
         }
     }
 }
+
+
+
 /* create_dirent finds a free slot in the directory, and write the
    directory entry */
 
@@ -459,6 +469,9 @@ int main(int argc, char** argv) {
     traverse_root(image_buf, bpb);
     fix_orphans(image_buf, bpb);
     unmmap_file(image_buf, &fd);
+    
+    free(bpb);
+    
     return 0;
 }
 
