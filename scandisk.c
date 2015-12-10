@@ -399,6 +399,25 @@ void traverse_root(uint8_t *image_buf, struct bpb33* bpb) {
     }
 }
 
+uint32_t calculate_size(uint16_t cluster, uint8_t *image_buf, struct bpb33 *bpb) {
+    uint16_t cluster_size = bpb->bpbBytesPerSec * bpb->bpbSecPerClust;
+
+    uint32_t total_size = 0;
+
+    while (!is_end_of_file(cluster)) {   
+        
+        if (cluster == (FAT12_MASK & CLUST_BAD)) {
+            printf("Bad cluster: cluster number %d \n", cluster);
+        }
+
+        total_size += cluster_size;
+
+        cluster = get_fat_entry(cluster, image_buf, bpb);
+    }
+
+    return total_size;
+}
+
 //print statement about no more orphans? print out each orphan found?
 //should be finding clusters of orphans not individuals
 void fix_orphans(uint8_t *image_buf, struct bpb33* bpb) {
@@ -429,19 +448,22 @@ void fix_orphans(uint8_t *image_buf, struct bpb33* bpb) {
             strcpy(name, "found");
             strcat(name, num);
             strcat(name, ".dat");
-            
-            create_dirent(dirent, name, i, clusters * 512, image_buf, bpb);
+            int size = calculate_size(next_cluster, image_buf, bpb);
+            create_dirent(dirent, name, i, size, image_buf, bpb);
             uint16_t cluster = next_cluster;
-            if (is_valid_cluster_scan(cluster, bpb)){
-                refs[cluster]++;
+            /*if (is_valid_cluster_scan(cluster, bpb)){
+            
+                
                 //i believe this check should go here, previously not finding any issues in image 5 when there are images there
                 if(refs[cluster] > 1) {
                     //deleting duplicate entry in directoty
                     dirent->deName[0] = SLOT_DELETED;
                     refs[cluster]--;
                     printf("scan error: multiple references.");
+                } else {
+                    cluster++;
                 }
-             }
+             }*/
             set_fat_entry(i, (FAT12_MASK & CLUST_EOFS), image_buf, bpb);
             printf("Orphan fostered!\n");
         }
