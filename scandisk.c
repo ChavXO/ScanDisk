@@ -272,6 +272,28 @@ uint16_t print_dirent(struct direntry *dirent, int indent)
                hidden?'h':' ', 
                sys?'s':' ', 
                arch?'a':' ');
+               
+        int chain = 0;
+        uint16_t cluster = getushort(dirent->deStartCluster);
+        while(is_valid_cluster(cluster, bpb)){
+              refs[cluster]++;
+              uint16_t previous = cluster;
+              cluster = get_fat_entry(cluster, image_buf, bpb);
+              if (previous == cluster){ //check pointing to itself
+                  printf("pointing to self\n");
+                  set_fat_entry(cluster, FAT12_MASK& CLUST_EOFS, image_buf, bpb);
+                  chain ++;
+                  break;
+              }
+              if(cluster == (FAT12_MASK & CLUST_BAD)){ //check bad cluster
+                  printf("Bad Cluster\n");
+                  set_fat_entry(cluster, FAT12_MASK & CLUST_FREE, image_buf, bpb);
+                  set_fat_entry(previous, FAT12_MASK & CLUST_EOFS, image_buf, bpb);
+                  chain++;
+                  break;
+              }
+              //check size for consistency  
+        
     }
 
     return followclust;
