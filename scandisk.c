@@ -396,6 +396,41 @@ void traverse_root(uint8_t *image_buf, struct bpb33* bpb) {
 }
 
 
+void fix_orphans(uint8_t *image_buf, struct bpb33* bpb) {
+    char name[128];
+    char num[16];
+    
+    uint16_t next_cluster;
+    struct direntry *dirent = (struct direntry*)cluster_to_addr(0, image_buf, bpb);
+    
+    int orphan_count = 0;
+    int clusters = 0;
+    
+    for (int i = 2; i < bpb->bpbSectors; i++) {
+        next_cluster = get_fat_entry(i, image_buf, bpb);        
+    
+        if (next_cluster != (FAT12_MASK&CLUST_FREE)) {
+            if (next_cluster == (FAT12_MASK & CLUST_BAD)) {
+                printf("Found bad orphan in cluster %d.\n", i);
+                set_fat_entry(next_cluster, CLUST_FREE, image_buf, bpb);
+                continue;
+            }
+            
+            orphan_count++;
+            printf("Orphan found in cluster %d.\n", i);
+    
+            // convert to str
+            sprintf(num, "%d", orphan_count);
+            strcpy(name, "found");
+            strcat(name, num);
+            strcat(name, ".dat");
+            
+            create_dirent(dirent, name, i, clusters * 512, image_buf, bpb);
+            set_fat_entry(i, (FAT12_MASK & CLUST_EOFS), image_buf, bpb);
+            printf("Orphan fostered!\n");
+        }
+    }
+}
 /* create_dirent finds a free slot in the directory, and write the
    directory entry */
 
@@ -413,6 +448,9 @@ int main(int argc, char** argv) {
     refs = calloc(bpb->bpbSectors-33, sizeof(int));
 
     traverse_root(image_buf, bpb);
+    fix_orphans(image_buf, bpb);
     unmmap_file(image_buf, &fd);
     return 0;
 }
+
+
