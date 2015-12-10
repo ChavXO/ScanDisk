@@ -77,10 +77,9 @@ int get_name(char *fullname, struct direntry *dirent) {
     return 0;
 }
 
-//TO BE MODIFIED - taken from dos.c
-int is_valid_cluster(uint16_t cluster, struct bpb33 *bpb)
+int is_valid_cluster_scan(uint16_t cluster, struct bpb33 *bpb)
 {
-    uint16_t max_cluster = (bpb->bpbSectors / bpb->bpbSecPerClust) & FAT12_MASK; // edit max xluster?
+    uint16_t max_cluster = (bpb->bpbSectors / bpb->bpbSecPerClust) & FAT12_MASK;
 
     if (cluster >= (FAT12_MASK & CLUST_FIRST) && 
         cluster <= (FAT12_MASK & CLUST_LAST) &&
@@ -276,7 +275,7 @@ uint16_t print_dirent(struct direntry *dirent, int indent, struct bpb33* bpb, ui
                
         int chain = 0;
         uint16_t cluster = getushort(dirent->deStartCluster);
-        while(is_valid_cluster(cluster, bpb)){
+        while(is_valid_cluster_scan(cluster, bpb)){
               refs[cluster]++;
               uint16_t previous = cluster;
               cluster = get_fat_entry(cluster, image_buf, bpb);
@@ -302,9 +301,15 @@ uint16_t print_dirent(struct direntry *dirent, int indent, struct bpb33* bpb, ui
               int max = chain * 512;
               int min = max - 512;
               
-              if(size > max || size <= min)
+              if(size > max)
               {
-                printf("OUT OF BOUNDS: Size in directory entry is inconsistent");
+                printf("OUT OF BOUNDS: Size in directory entry is inconsistent and is greater than the cluster chain\n");
+                putulong(dirent->deFileSize,max);
+              }
+              
+              else if(size <= min)
+              {
+                printf("OUT OF BOUNDS: Size in directory entry is inconsistent and is less than the cluster chain\n");
                 putulong(dirent->deFileSize,max);
               }
    }
@@ -315,7 +320,7 @@ uint16_t print_dirent(struct direntry *dirent, int indent, struct bpb33* bpb, ui
 void follow_dir(uint16_t cluster, int indent,
 		uint8_t *image_buf, struct bpb33* bpb)
 {
-    while (is_valid_cluster(cluster, bpb)) {
+    while (is_valid_cluster_scan(cluster, bpb)) {
         struct direntry *dirent = (struct direntry*)cluster_to_addr(cluster, image_buf, bpb);
 
         int numDirEntries = (bpb->bpbBytesPerSec * bpb->bpbSecPerClust) / sizeof(struct direntry);
@@ -335,7 +340,7 @@ void follow_dir(uint16_t cluster, int indent,
 
 bool is_valid_size(struct direntry* dirent, uint8_t image_buf, 
                    struct bpb33* bpb, int cluster) {
-    int start = getulong(dirent->deStartCluster);
+    int start = getushort(dirent->deStartCluster);
     int size = getulong(dirent->deFileSize);;
     int end = 0;
     end = start + size / 512;
@@ -352,7 +357,7 @@ bool is_valid_size(struct direntry* dirent, uint8_t image_buf,
     // int cluster = 0; // is this necessary or correct?
     
     // check if start cluster is valid
-    if (!is_valid_cluster(cluster, bpb)) {
+    if (!is_valid_cluster_scan(cluster, bpb)) {
         // mark as deleted
         // error message
         dirent->deName[0] = SLOT_DELETED;
@@ -374,7 +379,7 @@ void traverse_root(uint8_t *image_buf, struct bpb33* bpb) {
         uint16_t followclust = print_dirent(dirent, 0,bpb,image_buf);
         
         // check size
-        if (is_valid_cluster(followclust, bpb)) {   //update reference count
+        if (is_valid_cluster_scan(followclust, bpb)) {   //update reference count
             refs[followclust]++;
             //no index of refs can contain a number greater than 1
             if(refs[followclust] > 1) {
@@ -405,7 +410,7 @@ int main(int argc, char** argv) {
     image_buf = mmap_file(argv[1], &fd);
     bpb = check_bootsector(image_buf);
     
-    refs = calloc(bpb->bpbSectors, sizeof(int));
+    refs = calloc(bpb->bpbSectors-33, sizeof(int));
 
     traverse_root(image_buf, bpb);
     unmmap_file(image_buf, &fd);
