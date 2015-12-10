@@ -409,7 +409,7 @@ void fix_orphans(uint8_t *image_buf, struct bpb33* bpb) {
     for (int i = 2; i < bpb->bpbSectors; i++) {
         next_cluster = get_fat_entry(i, image_buf, bpb);        
     
-        if (next_cluster != (FAT12_MASK&CLUST_FREE)) {
+        if (refs[i] == 0 && next_cluster != (FAT12_MASK&CLUST_FREE)) {
             if (next_cluster == (FAT12_MASK & CLUST_BAD)) {
                 printf("Found bad orphan in cluster %d.\n", i);
                 set_fat_entry(next_cluster, CLUST_FREE, image_buf, bpb);
