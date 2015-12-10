@@ -16,6 +16,8 @@
 #include "fat.h"
 #include "dos.h"
 
+
+//note: look at badimage5 b/c i don't think our code is fixing the size issue there or not, also for detecting multiple references
 //array global variable
 
 int* refs;
@@ -277,6 +279,13 @@ uint16_t print_dirent(struct direntry *dirent, int indent, struct bpb33* bpb, ui
         uint16_t cluster = getushort(dirent->deStartCluster);
         while(is_valid_cluster_scan(cluster, bpb)){
               refs[cluster]++;
+              //i believe this check should go here, previously not finding any issues in image 5 when there are images there
+                  if(refs[cluster] > 1) {
+            //deleting duplicate entry in directoty
+               dirent->deName[0] = SLOT_DELETED;
+               refs[cluster]--;
+               printf("scan error: multiple references.");
+            }
               uint16_t previous = cluster;
               cluster = get_fat_entry(cluster, image_buf, bpb);
               if (previous == cluster){ //check pointing to itself
@@ -303,6 +312,7 @@ uint16_t print_dirent(struct direntry *dirent, int indent, struct bpb33* bpb, ui
               
               if(size > max)
               {
+              //add info about the inconsistency...for checking purposes perhaps
                 printf("OUT OF BOUNDS: Size in directory entry is inconsistent and is greater than the cluster chain\n");
                 putulong(dirent->deFileSize,max);
               }
@@ -395,7 +405,8 @@ void traverse_root(uint8_t *image_buf, struct bpb33* bpb) {
     }
 }
 
-
+//print statement about no more orphans? print out each orphan found?
+//should be finding clusters of orphans not individuals
 void fix_orphans(uint8_t *image_buf, struct bpb33* bpb) {
     char name[128];
     char num[16];
