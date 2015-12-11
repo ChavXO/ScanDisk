@@ -303,10 +303,10 @@ void chkerr(struct direntry* dirent, char* filename,
     
     // fix size inconsistencies
     if (num_clusters != 0 && entry_size < num_clusters - 512 ) { // take entry to be right
-        printf("OUT OF BOUNDS: \n\tFilename: %s \n\t\tsize in directory entry: %d, size in FAT chain: %d.) \n", filename, entry_size, num_clusters);
+        printf("OUT OF BOUNDS: \n\tFilename: %s \n\t\tsize in directory entry: %d, size in FAT chain: %d.) \n\n", filename, entry_size, num_clusters);
         repair(dirent, image_buf, bpb, entry_size);
     } else if (entry_size > num_clusters) { // take FAT to be right
-        printf("OUT OF BOUNDS: \n\tFilename: %s \n\t\tsize in directory entry: %d, size in FAT chain: %d \n", filename, entry_size, num_clusters);
+        printf("OUT OF BOUNDS: \n\tFilename: %s \n\t\tsize in directory entry: %d, size in FAT chain: %d \n\n", filename, entry_size, num_clusters);
         putulong(dirent->deFileSize, num_clusters);
     }
 }
