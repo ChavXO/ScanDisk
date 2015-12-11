@@ -296,7 +296,7 @@ void chkerr(struct direntry* dirent, char* filename,
     if (entry_size == 0) {
         if (dirent->deAttributes == ATTR_NORMAL && dirent->deName[0] != 
             SLOT_EMPTY && dirent->deName[0] != SLOT_DELETED) {
-            printf("Empty file ... rmeoving. \n");
+            printf("Empty file found... removing. \n\n");
             dirent->deName[0] = SLOT_DELETED;
         }
     }
@@ -359,7 +359,7 @@ int count_clusters(struct direntry *dirent,
     if (is_end_of_file(cluster)) num_bytes = 512;
     while (!is_end_of_file(cluster) && cluster < usable_clusters) {   
         if (cluster == bad_cluster) {
-            printf("Bad cluster: cluster number %d \n", cluster);
+            printf("Bad cluster: cluster number %d \n\n", cluster);
             set_fat_entry(prev_cluster, eof_cluster, image_buf, bpb);
             break;
         }
@@ -371,7 +371,7 @@ int count_clusters(struct direntry *dirent,
         prev_cluster = cluster;
         cluster = get_fat_entry(cluster, image_buf, bpb);
         if (prev_cluster == cluster) {
-            printf("Self eferential cluster. \n");
+            printf("Self referential cluster. \n\n");
             set_fat_entry(prev_cluster, eof_cluster, image_buf, bpb);
             break;   
         }
@@ -391,7 +391,7 @@ uint32_t size_of_cluster(uint16_t cluster, uint8_t *image_buf,
     append_clusters(cluster);
     while (!is_end_of_file(cluster)) {   
         if (cluster == bad_cluster) {
-            printf("Bad cluster: cluster number %d \n", cluster);
+            printf("Bad cluster: cluster number %d \n\n", cluster);
         }
         num_bytes += cluster_size;
         cluster = get_fat_entry(cluster, image_buf, bpb);
