@@ -40,7 +40,7 @@ void repair(struct direntry *dirent, uint8_t *image_buf, struct bpb33 *bpb, int 
 int count_clusters(struct direntry *dirent, 
                    uint8_t *image_buf, struct bpb33 *bpb);
 void foster_orphans(uint8_t *image_buf, struct bpb33* bpb);
-int foster_single_orphan(int orphan_count, uint16_t curr_cluster, 				 uint8_t *image_buf, struct bpb33* bpb);
+int foster_single_orphan(int orphan_count, uint16_t curr_cluster, uint8_t *image_buf, struct bpb33* bpb);
 uint32_t calculate_size(uint16_t cluster, uint8_t *image_buf, struct bpb33 *bpb);
 void append_clusters(uint16_t cluster);
 int in_cluster_list(uint16_t cluster);
