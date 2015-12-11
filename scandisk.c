@@ -75,7 +75,8 @@ void usage(char *progname) {
 void traverse_root(uint8_t *image_buf, struct bpb33* bpb) {
 
     uint16_t cluster = 0;
-    struct direntry* dirent = (struct direntry*) cluster_to_addr(cluster, image_buf, bpb);
+    struct direntry* dirent = (struct direntry*) 
+                              cluster_to_addr(cluster, image_buf, bpb);
 
     char buffer [MAXFILENAME]; //buffer for storing file names
 
@@ -107,8 +108,12 @@ void follow_dir(uint16_t cluster, int indent,
                uint8_t *image_buf, struct bpb33* bpb) {   
     while (is_valid_cluster(cluster, bpb)) {   
         append_clusters(cluster);
-        struct direntry *dirent = (struct direntry*)cluster_to_addr(cluster, image_buf, bpb);
-        int numDirEntries = (bpb->bpbBytesPerSec * bpb->bpbSecPerClust) / sizeof(struct direntry);
+        struct direntry *dirent = (struct direntry*)
+                               cluster_to_addr(cluster, image_buf, bpb);
+                               
+        int numDirEntries = (bpb->bpbBytesPerSec * bpb->bpbSecPerClust) 
+                            / sizeof(struct direntry);
+                            
         char buffer[MAXFILENAME];
         int i = 0;
         for ( ; i < numDirEntries; i++) {
@@ -164,7 +169,8 @@ uint16_t get_dirent(struct direntry *dirent, char *buffer) {
     if ((dirent->deAttributes & ATTR_WIN95LFN) == ATTR_WIN95LFN) {
         // ignore any long file name extension entries
         //
-        // printf("Win95 long-filename entry seq 0x%0x\n", dirent->deName[0]);
+        // printf("Win95 long-filename entry seq 0x%0x\n", 
+        //          dirent->deName[0]);
     } else if ((dirent->deAttributes & ATTR_DIRECTORY) != 0) {
         // don't deal with hidden directories; MacOS makes these
         // for trash directories and such; just ignore them.
@@ -324,14 +330,14 @@ void repair(struct direntry *dirent, uint8_t *image_buf, struct bpb33 *bpb, int 
     }
     
     if (num_bytes != 0) {
-        set_fat_entry(prev_cluster, FAT12_MASK & CLUST_EOFS, image_buf, bpb);
+        set_fat_entry(prev_cluster, eof_cluster, image_buf, bpb);
     }
     
     // update all other clusters attached and mark them as free
     while (!is_end_of_file(cluster)) {
         uint16_t old_cluster = cluster;
         cluster = get_fat_entry(cluster, image_buf, bpb);
-        set_fat_entry(old_cluster, FAT12_MASK & CLUST_FREE, image_buf, bpb);
+        set_fat_entry(old_cluster, free_cluster, image_buf, bpb);
     }
 }
 
@@ -352,13 +358,13 @@ int count_clusters(struct direntry *dirent,
     append_clusters(cluster);
     if (is_end_of_file(cluster)) num_bytes = 512;
     while (!is_end_of_file(cluster) && cluster < usable_clusters) {   
-        if (cluster == (FAT12_MASK & CLUST_BAD)) {
+        if (cluster == bad_cluster) {
             printf("Bad cluster: cluster number %d \n", cluster);
-            set_fat_entry(prev_cluster, FAT12_MASK & CLUST_EOFS, image_buf, bpb);
+            set_fat_entry(prev_cluster, eof_cluster, image_buf, bpb);
             break;
         }
-        if (cluster == (FAT12_MASK & CLUST_FREE)) {
-            set_fat_entry(prev_cluster, FAT12_MASK & CLUST_EOFS, image_buf, bpb);
+        if (cluster == free_cluster) {
+            set_fat_entry(prev_cluster, eof_cluster, image_buf, bpb);
             break;   
         }
         num_bytes += cluster_size;
@@ -366,7 +372,7 @@ int count_clusters(struct direntry *dirent,
         cluster = get_fat_entry(cluster, image_buf, bpb);
         if (prev_cluster == cluster) {
             printf("Self eferential cluster. \n");
-            set_fat_entry(prev_cluster, FAT12_MASK & CLUST_EOFS, image_buf, bpb);
+            set_fat_entry(prev_cluster, eof_cluster, image_buf, bpb);
             break;   
         }
         append_clusters(cluster);
@@ -384,7 +390,7 @@ uint32_t size_of_cluster(uint16_t cluster, uint8_t *image_buf,
     uint32_t num_bytes = 0;
     append_clusters(cluster);
     while (!is_end_of_file(cluster)) {   
-        if (cluster == (FAT12_MASK & CLUST_BAD)) {
+        if (cluster == bad_cluster) {
             printf("Bad cluster: cluster number %d \n", cluster);
         }
         num_bytes += cluster_size;
@@ -424,17 +430,20 @@ int foster_single_orphan(int orphan_count, uint16_t curr_cluster,
                          uint8_t *image_buf, struct bpb33* bpb) {
     orphan_count++;
     int cluster = 0;
-    struct direntry* dirent = (struct direntry*)cluster_to_addr(cluster, image_buf, bpb);
+    struct direntry* dirent = (struct direntry*)
+                              cluster_to_addr(cluster, image_buf, bpb);
     char filename[13]; char str[3];
     
     // make file name
-    memset(filename, '\0', 13); strcat(filename, "found"); memset(str, '\0', 3);
+    memset(filename, '\0', 13); strcat(filename, "found"); 
+    memset(str, '\0', 3);
     sprintf(str, "%d", orphan_count);
     strcat(filename, str); strcat(filename, ".dat");
 
     int clusters_size = size_of_cluster(curr_cluster, image_buf, bpb);
     append_clusters(cluster);
-    create_dirent(dirent, filename, curr_cluster, clusters_size, image_buf, bpb);
+    create_dirent(dirent, filename, curr_cluster, 
+                  clusters_size, image_buf, bpb);
     return orphan_count;
 }
 
